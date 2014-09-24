@@ -58,7 +58,7 @@ func (p *Page) AddAsset(a *Asset) {
 }
 
 func (p *Page) AddPage(np *Page) {
-	p.Pages = append(p.Pages, p)
+	p.Pages = append(p.Pages, np)
 }
 
 func (p *Page) AddRemotePage(rp *Asset) {
@@ -69,7 +69,17 @@ func (p *Page) AddRemotePage(rp *Asset) {
  * Dump data about this page and all pages it links to.
  */
 func (p *Page) Dump() {
-	p.DumpPage_Indent(0)
+	var buf bytes.Buffer
+	p.DumpToBuffer(&buf)
+	fmt.Println(buf.String())
+}
+
+/**
+ * Dump to buffer. This dumps the output to a buffer.
+ */
+func (p *Page) DumpToBuffer(buf *bytes.Buffer) {
+	visited := make(map[string]bool)
+	p.DumpPage_Indent(buf, 0, visited)
 }
 
 /**
@@ -87,23 +97,36 @@ func indent(level int) string {
 /**
  * Core dump page function with included indentation
  */
-func (p *Page) DumpPage_Indent(level int) {
-	fmt.Printf("%sTitle: %s\n", indent(level), p.Title)
-	fmt.Printf("%sURI:   %s\n", indent(level), p.URI)
-	fmt.Printf("%sAssets:\n", indent(level))
+func (p *Page) DumpPage_Indent(buf *bytes.Buffer, level int, visited map[string]bool) {
+	visited[p.URI] = true
 
-	for _, a := range p.Assets {
-		fmt.Printf("%sURI: %s (%s)\n", indent(level+1), a.URI, getTypeString(a.Type))
+	fmt.Fprintf(buf, "%sTitle: %s\n", indent(level), p.Title)
+	fmt.Fprintf(buf, "%sURI:   %s\n", indent(level), p.URI)
+	if len(p.Assets) > 0 {
+		fmt.Fprintf(buf, "%sAssets:\n", indent(level))
+
+		for _, a := range p.Assets {
+			fmt.Fprintf(buf, "%sURI: %s (%s)\n", indent(level+1), a.URI, getTypeString(a.Type))
+		}
 	}
 
-	fmt.Printf("%sRemote Pages:\n", indent(level))
-	for _, rp := range p.RemotePages {
-		fmt.Printf("%sURI: %s\n", indent(level+1), rp.URI)
+	if len(p.RemotePages) > 0 {
+		fmt.Fprintf(buf, "%sRemote Pages:\n", indent(level))
+		for _, rp := range p.RemotePages {
+			fmt.Fprintf(buf, "%sURI: %s\n", indent(level+1), rp.URI)
+		}
 	}
 
-	fmt.Printf("%sPages:\n", indent(level))
-	for _, np := range p.Pages {
-		np.DumpPage_Indent(level + 1)
+	if len(p.Pages) > 0 {
+		fmt.Fprintf(buf, "%sPages:\n", indent(level))
+		for _, np := range p.Pages {
+			if !visited[np.URI] {
+				np.DumpPage_Indent(buf, level+1, visited)
+			} else {
+				fmt.Fprintf(buf, "%sTitle: %s (previously visited)\n", indent(level+1), np.Title)
+				fmt.Fprintf(buf, "%sURI:   %s\n", indent(level+1), np.URI)
+			}
+		}
 	}
 
 	fmt.Println()
