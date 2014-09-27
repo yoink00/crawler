@@ -1,7 +1,6 @@
 package crawler
 
 import (
-	"fmt"
 	"github.com/puerkitobio/goquery"
 	"io"
 	"net/http"
@@ -53,14 +52,11 @@ func isSameUri(domain *url.URL, uri *url.URL, newuri *url.URL) bool {
 func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter httpGetFunction, visited map[string]*Page) (*Page, error) {
 	defer buf.Close()
 
-	fmt.Printf("Processing %s\n", uri.String())
-
 	// Check to see if we've visited this page.
 	uri.Fragment = ""
 	if visited != nil {
 		if page, exists := visited[uri.String()]; exists {
 			// If we have then return it.
-			fmt.Printf("I've visited this page: %s\n", uri.String())
 			return page, nil
 		}
 	}
@@ -74,7 +70,6 @@ func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter http
 	title := doc.Find("title").Text()
 	page := NewPage(uri.String(), title)
 
-	fmt.Printf("I've not visited this page: %s\n", uri.String())
 	if visited != nil {
 		visited[uri.String()] = page
 	}
