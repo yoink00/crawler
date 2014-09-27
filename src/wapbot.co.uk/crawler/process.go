@@ -4,17 +4,12 @@ import (
 	"fmt"
 	"github.com/puerkitobio/goquery"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 )
 
-// A simple implementation of response to allow mocking in tests
-type httpResponse struct {
-	StatusCode int
-	Body       io.Reader
-}
-
-type httpGetFunction func(string) (*httpResponse, error)
+type httpGetFunction func(string) (*http.Response, error)
 
 /*
  * Define a remote URL as one where:
@@ -26,7 +21,7 @@ func isRemoteLink(domain *url.URL, uri *url.URL) bool {
 	if !uri.IsAbs() {
 		uri = domain.ResolveReference(uri)
 	}
-	if uri.Host != domain.Host || (uri.Host != domain.Host && uri.Path != domain.Path) {
+	if uri.Host != domain.Host || (uri.Host == domain.Host && !strings.HasPrefix(uri.Path, domain.Path)) {
 		return true
 	}
 
@@ -55,7 +50,22 @@ func isSameUri(domain *url.URL, uri *url.URL, newuri *url.URL) bool {
 	return false
 }
 
-func ProcessPage(domain *url.URL, uri *url.URL, buf io.Reader, getter httpGetFunction, visited map[string]*Page) (*Page, error) {
+func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter httpGetFunction, visited map[string]*Page) (*Page, error) {
+	defer buf.Close()
+
+	fmt.Printf("Processing %s\n", uri.String())
+
+	// Check to see if we've visited this page.
+	uri.Fragment = ""
+	if visited != nil {
+		if page, exists := visited[uri.String()]; exists {
+			// If we have then return it.
+			fmt.Printf("I've visited this page: %s\n", uri.String())
+			return page, nil
+		}
+	}
+
+	// Process the new document
 	doc, err := goquery.NewDocumentFromReader(buf)
 	if err != nil {
 		return nil, err
@@ -63,11 +73,10 @@ func ProcessPage(domain *url.URL, uri *url.URL, buf io.Reader, getter httpGetFun
 
 	title := doc.Find("title").Text()
 	page := NewPage(uri.String(), title)
-	uri.Fragment = ""
+
+	fmt.Printf("I've not visited this page: %s\n", uri.String())
 	if visited != nil {
-		if _, exists := visited[uri.String()]; !exists {
-			visited[uri.String()] = page
-		}
+		visited[uri.String()] = page
 	}
 
 	doc.Find("a").EachWithBreak(func(_ int, sel *goquery.Selection) bool {
@@ -98,7 +107,7 @@ func ProcessPage(domain *url.URL, uri *url.URL, buf io.Reader, getter httpGetFun
 						if err != nil {
 							return false
 						}
-						newpage, err := ProcessPage(domain, newuri, resp.Body, getter, visited)
+						newpage, err := doProcessPage(domain, newuri, resp.Body, getter, visited)
 						if err != nil {
 							return false
 						} else {
@@ -135,7 +144,6 @@ func ProcessPage(domain *url.URL, uri *url.URL, buf io.Reader, getter httpGetFun
 	})
 
 	doc.Find("script").Each(func(_ int, sel *goquery.Selection) {
-		fmt.Println("HERE")
 		href, exists := sel.Attr("src")
 		if exists {
 			typ, exists := sel.Attr("type")
@@ -149,4 +157,15 @@ func ProcessPage(domain *url.URL, uri *url.URL, buf io.Reader, getter httpGetFun
 	})
 
 	return page, nil
+}
+
+func ProcessPage(uri *url.URL) (*Page, error) {
+	visited := make(map[string]*Page)
+
+	resp, err := http.Get(uri.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return doProcessPage(uri, uri, resp.Body, http.Get, visited)
 }

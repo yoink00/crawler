@@ -4,9 +4,22 @@ import (
 	"bytes"
 	"errors"
 	. "github.com/smartystreets/goconvey/convey"
+	"net/http"
 	"net/url"
 	"testing"
 )
+
+type openCloseBuffer struct {
+	buffer *bytes.Buffer
+}
+
+func (b *openCloseBuffer) Read(p []byte) (n int, err error) {
+	return b.buffer.Read(p)
+}
+
+func (b *openCloseBuffer) Close() error {
+	return nil
+}
 
 func Test_ProcessPage(t *testing.T) {
 	Convey("Given a simple html page", t, func() {
@@ -24,7 +37,7 @@ func Test_ProcessPage(t *testing.T) {
 		Convey("Process the page and create a basic page struct", func() {
 
 			u, _ := url.Parse("http://local.link/zzzz")
-			page, err := ProcessPage(nil, u, bytes.NewBufferString(page), nil, nil)
+			page, err := doProcessPage(nil, u, &openCloseBuffer{bytes.NewBufferString(page)}, nil, nil)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is a title")
@@ -52,7 +65,7 @@ func Test_ProcessPage(t *testing.T) {
 		Convey("Process the page and confirm the basic page struct has the remote pages", func() {
 			d, _ := url.Parse("http://local.link")
 			u, _ := url.Parse("http://local.link/zzzz")
-			page, err := ProcessPage(d, u, bytes.NewBufferString(page), nil, nil)
+			page, err := doProcessPage(d, u, &openCloseBuffer{bytes.NewBufferString(page)}, nil, nil)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is a new article")
@@ -77,7 +90,7 @@ func Test_ProcessPage(t *testing.T) {
 								</html>
 					`
 
-		newGetter := func(uri string) (*httpResponse, error) {
+		newGetter := func(uri string) (*http.Response, error) {
 			if uri == "http://local.link/somewhere" {
 				page := `
 												<html>
@@ -90,7 +103,11 @@ func Test_ProcessPage(t *testing.T) {
 												</html>
 								`
 
-				return &httpResponse{200, bytes.NewBufferString(page)}, nil
+				resp := new(http.Response)
+				resp.StatusCode = 200
+				resp.Body = &openCloseBuffer{bytes.NewBufferString(page)}
+
+				return resp, nil
 
 			} else if uri == "http://local.link/somewhere2" {
 				page := `
@@ -104,7 +121,11 @@ func Test_ProcessPage(t *testing.T) {
 												</html>
 								`
 
-				return &httpResponse{200, bytes.NewBufferString(page)}, nil
+				resp := new(http.Response)
+				resp.StatusCode = 200
+				resp.Body = &openCloseBuffer{bytes.NewBufferString(page)}
+
+				return resp, nil
 			}
 
 			return nil, errors.New("Invalid url")
@@ -113,7 +134,7 @@ func Test_ProcessPage(t *testing.T) {
 		Convey("Process the page and confirm the basic page struct has the local pages", func() {
 			d, _ := url.Parse("http://local.link")
 			u, _ := url.Parse("http://local.link/zzzz")
-			page, err := ProcessPage(d, u, bytes.NewBufferString(page), newGetter, nil)
+			page, err := doProcessPage(d, u, &openCloseBuffer{bytes.NewBufferString(page)}, newGetter, nil)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is a new new article")
@@ -141,7 +162,7 @@ func Test_ProcessPage(t *testing.T) {
 		Convey("Process the page and confirm the basic page struct has the images", func() {
 			d, _ := url.Parse("http://local.link")
 			u, _ := url.Parse("http://local.link/zzzz")
-			page, err := ProcessPage(d, u, bytes.NewBufferString(page), nil, nil)
+			page, err := doProcessPage(d, u, &openCloseBuffer{bytes.NewBufferString(page)}, nil, nil)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is an article with images")
@@ -174,7 +195,7 @@ func Test_ProcessPage(t *testing.T) {
 		Convey("Process the page and confirm the basic page struct has the css", func() {
 			d, _ := url.Parse("http://local.link")
 			u, _ := url.Parse("http://local.link/zzzz")
-			page, err := ProcessPage(d, u, bytes.NewBufferString(page), nil, nil)
+			page, err := doProcessPage(d, u, &openCloseBuffer{bytes.NewBufferString(page)}, nil, nil)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is an article with links")
@@ -211,7 +232,7 @@ func Test_ProcessPage(t *testing.T) {
 		Convey("Process the page and confirm the basic page struct has the javascript", func() {
 			d, _ := url.Parse("http://local.link")
 			u, _ := url.Parse("http://local.link/zzzz")
-			page, err := ProcessPage(d, u, bytes.NewBufferString(page), nil, nil)
+			page, err := doProcessPage(d, u, &openCloseBuffer{bytes.NewBufferString(page)}, nil, nil)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is an article with JS")
@@ -228,7 +249,6 @@ func Test_ProcessPage(t *testing.T) {
 	})
 }
 
-//TODO: Local pages with loops
 func Test_ProcessPage_InfiniteLoopOfLocalPages(t *testing.T) {
 	Convey("Given an html page with one link to itself", t, func() {
 		page := `
@@ -248,7 +268,7 @@ func Test_ProcessPage_InfiniteLoopOfLocalPages(t *testing.T) {
 		Convey("Process the page and check that an infinite loop is not created", func() {
 			d, _ := url.Parse("http://local.link")
 			u, _ := url.Parse("http://local.link/zzzz")
-			page, err := ProcessPage(d, u, bytes.NewBufferString(page), nil, nil)
+			page, err := doProcessPage(d, u, &openCloseBuffer{bytes.NewBufferString(page)}, nil, nil)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is a title")
@@ -272,7 +292,7 @@ func Test_ProcessPage_InfiniteLoopOfLocalPages(t *testing.T) {
 												</body>
 								</html>
 				`
-		newGetter := func(uri string) (*httpResponse, error) {
+		newGetter := func(uri string) (*http.Response, error) {
 			if uri == "http://local.link/yyyy" {
 				newpage := `
 												<html>
@@ -285,9 +305,18 @@ func Test_ProcessPage_InfiniteLoopOfLocalPages(t *testing.T) {
 												</html>
 								`
 
-				return &httpResponse{200, bytes.NewBufferString(newpage)}, nil
+				resp := new(http.Response)
+				resp.StatusCode = 200
+				resp.Body = &openCloseBuffer{bytes.NewBufferString(newpage)}
+
+				return resp, nil
+
 			} else if uri == "http://local.link/zzzz" {
-				return &httpResponse{200, bytes.NewBufferString(page)}, nil
+				resp := new(http.Response)
+				resp.StatusCode = 200
+				resp.Body = &openCloseBuffer{bytes.NewBufferString(page)}
+
+				return resp, nil
 			}
 
 			return nil, errors.New("Url invalid")
@@ -297,7 +326,7 @@ func Test_ProcessPage_InfiniteLoopOfLocalPages(t *testing.T) {
 			d, _ := url.Parse("http://local.link")
 			u, _ := url.Parse("http://local.link/zzzz")
 			visited := make(map[string]*Page)
-			page, err := ProcessPage(d, u, bytes.NewBufferString(page), newGetter, visited)
+			page, err := doProcessPage(d, u, &openCloseBuffer{bytes.NewBufferString(page)}, newGetter, visited)
 			So(err, ShouldBeNil)
 			So(page, ShouldNotBeNil)
 			So(page.Title, ShouldEqual, "This is a title")
@@ -306,6 +335,23 @@ func Test_ProcessPage_InfiniteLoopOfLocalPages(t *testing.T) {
 			So(len(page.RemotePages), ShouldEqual, 0)
 			So(len(page.Pages), ShouldEqual, 1)
 			So(len(page.Assets), ShouldEqual, 0)
+		})
+	})
+}
+
+func Test_ProcessPage_SimpleRealPage(t *testing.T) {
+	Convey("Given a real page", t, func() {
+		uri, err := url.Parse("http://xkcd.com/353/")
+		So(err, ShouldBeNil)
+		So(uri, ShouldNotBeNil)
+
+		Convey("Process the page and check that something happened", func() {
+			page, err := ProcessPage(uri)
+			So(err, ShouldBeNil)
+			So(page, ShouldNotBeNil)
+			So(len(page.RemotePages), ShouldEqual, 30)
+			So(len(page.Pages), ShouldEqual, 0)
+			So(len(page.Assets), ShouldEqual, 10)
 		})
 	})
 }
