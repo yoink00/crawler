@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 )
 
 type AssetType int
@@ -44,6 +45,7 @@ type Asset struct {
 type Page struct {
 	// Composed of asset
 	Asset
+	sync.Mutex
 
 	// The title of the page. Usually from <title> tags.
 	Title string
@@ -54,14 +56,23 @@ type Page struct {
 }
 
 func (p *Page) AddAsset(a *Asset) {
+	p.Lock()
+	defer p.Unlock()
+
 	p.Assets = append(p.Assets, a)
 }
 
 func (p *Page) AddPage(np *Page) {
+	p.Lock()
+	defer p.Unlock()
+
 	p.Pages = append(p.Pages, np)
 }
 
 func (p *Page) AddRemotePage(rp *Asset) {
+	p.Lock()
+	defer p.Unlock()
+
 	p.RemotePages = append(p.RemotePages, rp)
 }
 

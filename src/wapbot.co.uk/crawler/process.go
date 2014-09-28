@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 type httpGetFunction func(string) (*http.Response, error)
@@ -74,6 +75,8 @@ func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter http
 		visited[uri.String()] = page
 	}
 
+	var wg sync.WaitGroup
+	spawned := 0
 	doc.Find("a").EachWithBreak(func(_ int, sel *goquery.Selection) bool {
 		href, exists := sel.Attr("href")
 		if exists {
@@ -98,16 +101,21 @@ func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter http
 					if newpage, exists := visited[newuri.String()]; exists {
 						page.AddPage(newpage)
 					} else {
-						resp, err := getter(newuri.String())
-						if err != nil {
-							return false
-						}
-						newpage, err := doProcessPage(domain, newuri, resp.Body, getter, visited)
-						if err != nil {
-							return false
-						} else {
-							page.AddPage(newpage)
-						}
+						wg.Add(1)
+						spawned++
+						go func() {
+							defer wg.Done()
+							resp, err := getter(newuri.String())
+							if err != nil {
+								return
+							}
+							newpage, err := doProcessPage(domain, newuri, resp.Body, getter, visited)
+							if err != nil {
+								return
+							} else {
+								page.AddPage(newpage)
+							}
+						}()
 					}
 				}
 			}
@@ -115,6 +123,8 @@ func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter http
 
 		return true
 	})
+	wg.Wait()
+
 	if err != nil {
 		return nil, err
 	}
