@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"wapbot.co.uk/crawler"
 )
@@ -14,6 +15,8 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func main() {
 	flag.Parse()
+
+	fmt.Printf("GOMAXPROCS is set to: %d\n", runtime.GOMAXPROCS(-1))
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
