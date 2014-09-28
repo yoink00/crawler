@@ -15,7 +15,6 @@ Then installing is as simple as:
   - `go get -d ./...`
   - `cd src/wapbot.co.uk/crawlapp`
   - `go install`
-  - 
   
 Running
 -------
