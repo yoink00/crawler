@@ -8,13 +8,26 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"wapbot.co.uk/crawler"
 )
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var site = flag.String("site", "", "site to process")
 
 func main() {
 	flag.Parse()
+
+	if *site == "" {
+		fmt.Println("-site flag is mandatory")
+		return
+	}
+
+	if !strings.HasPrefix(*site, "http://") &&
+		!strings.HasPrefix(*site, "https://") {
+		fmt.Println("-site must be a fully formed URL")
+		return
+	}
 
 	fmt.Printf("GOMAXPROCS is set to: %d\n", runtime.GOMAXPROCS(-1))
 
@@ -28,7 +41,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	uri, err := url.Parse("http://tomblomfield.com")
+	uri, err := url.Parse(*site)
 	if err != nil {
 		fmt.Printf("Invalid url: %s\n", err.Error())
 		return
