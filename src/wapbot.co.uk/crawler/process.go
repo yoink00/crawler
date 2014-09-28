@@ -59,6 +59,10 @@ func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter http
 		if page, exists := visited[uri.String()]; exists {
 			// If we have then return it.
 			return page, nil
+		} else if page, exists := visited[uri.String()+"/"]; exists {
+			return page, nil
+		} else if page, exists := visited[strings.TrimRight(uri.String(), "/")]; exists {
+			return page, nil
 		}
 	}
 
@@ -108,6 +112,17 @@ func doProcessPage(domain *url.URL, uri *url.URL, buf io.ReadCloser, getter http
 							resp, err := getter(newuri.String())
 							if err != nil {
 								return
+							}
+							if contentType, exists := resp.Header["Content-Type"]; exists {
+								ok := false
+								for _, s := range contentType {
+									if strings.Contains(s, "text/html") {
+										ok = true
+									}
+								}
+								if !ok {
+									return
+								}
 							}
 							newpage, err := doProcessPage(domain, newuri, resp.Body, getter, visited)
 							if err != nil {
