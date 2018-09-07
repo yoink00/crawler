@@ -2,34 +2,36 @@ package crawler
 
 import (
 	"bytes"
-	. "github.com/smartystreets/goconvey/convey"
+	"net/url"
 	"testing"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func Test_NewAsset(t *testing.T) {
 	Convey("Create a JS asset", t, func() {
-		asset, err := NewAsset("aaaa", AssetType_JS)
+		asset, err := NewAsset("aaaa", AssetTypeJS)
 		So(err, ShouldBeNil)
 		So(asset.URI, ShouldEqual, "aaaa")
-		So(asset.Type, ShouldEqual, AssetType_JS)
+		So(asset.Type, ShouldEqual, AssetTypeJS)
 	})
 	Convey("Create a HTML asset", t, func() {
-		asset, err := NewAsset("aaaa", AssetType_HTML)
+		asset, err := NewAsset("aaaa", AssetTypeHTML)
 		So(err, ShouldBeNil)
 		So(asset.URI, ShouldEqual, "aaaa")
-		So(asset.Type, ShouldEqual, AssetType_HTML)
+		So(asset.Type, ShouldEqual, AssetTypeHTML)
 	})
 	Convey("Create a CSS asset", t, func() {
-		asset, err := NewAsset("aaaa", AssetType_CSS)
+		asset, err := NewAsset("aaaa", AssetTypeCSS)
 		So(err, ShouldBeNil)
 		So(asset.URI, ShouldEqual, "aaaa")
-		So(asset.Type, ShouldEqual, AssetType_CSS)
+		So(asset.Type, ShouldEqual, AssetTypeCSS)
 	})
 	Convey("Create a IMG asset", t, func() {
-		asset, err := NewAsset("aaaa", AssetType_IMG)
+		asset, err := NewAsset("aaaa", AssetTypeIMG)
 		So(err, ShouldBeNil)
 		So(asset.URI, ShouldEqual, "aaaa")
-		So(asset.Type, ShouldEqual, AssetType_IMG)
+		So(asset.Type, ShouldEqual, AssetTypeIMG)
 	})
 
 	Convey("Create an asset with an invalid type", t, func() {
@@ -41,29 +43,31 @@ func Test_NewAsset(t *testing.T) {
 
 func Test_NewPage(t *testing.T) {
 	Convey("Create a new page", t, func() {
-		page := NewPage("aaaa", "This is the title")
-		So(page.Title, ShouldEqual, "This is the title")
-		So(page.Type, ShouldEqual, AssetType_HTML)
-		So(page.URI, ShouldEqual, "aaaa")
+		u, _ := url.Parse("http://aaaa")
+		page := NewPage(u)
+		So(page.Type, ShouldEqual, AssetTypeHTML)
+		So(page.URI.String(), ShouldEqual, "http://aaaa")
 	})
 }
 
 func Test_DumpPage_Indent(t *testing.T) {
 	Convey("Given a simple one page struct with values set", t, func() {
-		page := NewPage("aaaa", "Title")
+		u, _ := url.Parse("http://aaaa")
+		page := NewPage(u)
+		page.Title = "Title"
 
 		Convey("Check that it is dumped correctly", func() {
 			var buf bytes.Buffer
 			page.DumpToBuffer(&buf)
 			So(buf.String(), ShouldEqual, `Title: Title
-URI:   aaaa
+URI:   http://aaaa
 `)
 		})
 
 		Convey("Add some assets to the page", func() {
-			asset1, err := NewAsset("bbbb.js", AssetType_JS)
+			asset1, err := NewAsset("bbbb.js", AssetTypeJS)
 			So(err, ShouldBeNil)
-			asset2, err := NewAsset("cccc.js", AssetType_JS)
+			asset2, err := NewAsset("cccc.js", AssetTypeJS)
 			So(err, ShouldBeNil)
 
 			page.AddAsset(asset1)
@@ -73,7 +77,7 @@ URI:   aaaa
 				var buf bytes.Buffer
 				page.DumpToBuffer(&buf)
 				So(buf.String(), ShouldEqual, `Title: Title
-URI:   aaaa
+URI:   http://aaaa
 Assets:
  URI: bbbb.js (JS)
  URI: cccc.js (JS)
@@ -81,9 +85,9 @@ Assets:
 			})
 
 			Convey("Add some remote pages", func() {
-				rpage1, err := NewAsset("dddd", AssetType_HTML)
+				rpage1, err := NewAsset("dddd", AssetTypeHTML)
 				So(err, ShouldBeNil)
-				rpage2, err := NewAsset("eeee", AssetType_HTML)
+				rpage2, err := NewAsset("eeee", AssetTypeHTML)
 				So(err, ShouldBeNil)
 
 				page.AddRemotePage(rpage1)
@@ -93,7 +97,7 @@ Assets:
 					var buf bytes.Buffer
 					page.DumpToBuffer(&buf)
 					So(buf.String(), ShouldEqual, `Title: Title
-URI:   aaaa
+URI:   http://aaaa
 Assets:
  URI: bbbb.js (JS)
  URI: cccc.js (JS)
@@ -104,7 +108,9 @@ Remote Pages:
 				})
 
 				Convey("Add a local page", func() {
-					lpage := NewPage("ffff", "Title2")
+					u, _ := url.Parse("http://ffff")
+					lpage := NewPage(u)
+					lpage.Title = "Title2"
 					So(err, ShouldBeNil)
 
 					page.AddPage(lpage)
@@ -113,7 +119,7 @@ Remote Pages:
 						var buf bytes.Buffer
 						page.DumpToBuffer(&buf)
 						So(buf.String(), ShouldEqual, `Title: Title
-URI:   aaaa
+URI:   http://aaaa
 Assets:
  URI: bbbb.js (JS)
  URI: cccc.js (JS)
@@ -122,7 +128,7 @@ Remote Pages:
  URI: eeee
 Pages:
  Title: Title2
- URI:   ffff
+ URI:   http://ffff
 `)
 					})
 
@@ -139,7 +145,7 @@ Pages:
 							var buf bytes.Buffer
 							page.DumpToBuffer(&buf)
 							So(buf.String(), ShouldEqual, `Title: Title
-URI:   aaaa
+URI:   http://aaaa
 Assets:
  URI: bbbb.js (JS)
  URI: cccc.js (JS)
@@ -148,10 +154,10 @@ Remote Pages:
  URI: eeee
 Pages:
  Title: Title2
- URI:   ffff
+ URI:   http://ffff
  Pages:
   Title: Title (previously visited)
-  URI:   aaaa
+  URI:   http://aaaa
 `)
 						})
 					})

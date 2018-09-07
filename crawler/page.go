@@ -4,48 +4,47 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"sync"
+	"net/url"
 )
 
+// AssetType describes the type of the asset on the page
 type AssetType int
 
 const (
-	AssetType_JS AssetType = iota
-	AssetType_HTML
-	AssetType_CSS
-	AssetType_IMG
+	// AssetTypeJS is a JavaScript asset
+	AssetTypeJS AssetType = iota
+	// AssetTypeHTML is an HTML asset
+	AssetTypeHTML
+	// AssetTypeCSS is a style sheet asset
+	AssetTypeCSS
+	// AssetTypeIMG is an image asset
+	AssetTypeIMG
 )
 
 func getTypeString(at AssetType) string {
-	if at == AssetType_JS {
+	if at == AssetTypeJS {
 		return "JS"
-	} else if at == AssetType_HTML {
+	} else if at == AssetTypeHTML {
 		return "HTML"
-	} else if at == AssetType_CSS {
+	} else if at == AssetTypeCSS {
 		return "CSS"
-	} else if at == AssetType_IMG {
+	} else if at == AssetTypeIMG {
 		return "Image"
 	} else {
 		return "Unknown"
 	}
 }
 
-/**
- * This struct describes a general asset.
- */
+// Asset describes a general asset.
 type Asset struct {
 	URI  string
 	Type AssetType
 }
 
-/**
- * This struct describes a web-page and the
- * pertinent information within.
- */
+// Page describes a web-page and the pertinent information within.
 type Page struct {
-	// Composed of asset
-	Asset
-	sync.Mutex
+	URI  *url.URL
+	Type AssetType
 
 	// The title of the page. Usually from <title> tags.
 	Title string
@@ -55,47 +54,35 @@ type Page struct {
 	RemotePages []*Asset
 }
 
+// AddAsset adds the asset to the page
 func (p *Page) AddAsset(a *Asset) {
-	p.Lock()
-	defer p.Unlock()
-
 	p.Assets = append(p.Assets, a)
 }
 
+// AddPage adds a local page (that will be later crawled) to the page
 func (p *Page) AddPage(np *Page) {
-	p.Lock()
-	defer p.Unlock()
-
 	p.Pages = append(p.Pages, np)
 }
 
+// AddRemotePage adds a remote page (that will not be crawled) to the page
 func (p *Page) AddRemotePage(rp *Asset) {
-	p.Lock()
-	defer p.Unlock()
-
 	p.RemotePages = append(p.RemotePages, rp)
 }
 
-/**
- * Dump data about this page and all pages it links to.
- */
+// Dump will ouput data about this page and all pages it links to.
 func (p *Page) Dump() {
 	var buf bytes.Buffer
 	p.DumpToBuffer(&buf)
 	fmt.Println(buf.String())
 }
 
-/**
- * Dump to buffer. This dumps the output to a buffer.
- */
+// DumpToBuffer dumps the output to a buffer.
 func (p *Page) DumpToBuffer(buf *bytes.Buffer) {
 	visited := make(map[string]bool)
-	p.DumpPage_Indent(buf, 0, visited)
+	p.DumpPageIndent(buf, 0, visited)
 }
 
-/**
- * Indentation helper function
- */
+// Indentation helper function
 func indent(level int) string {
 	var indent bytes.Buffer
 	for i := 0; i < level; i++ {
@@ -105,11 +92,9 @@ func indent(level int) string {
 	return indent.String()
 }
 
-/**
- * Core dump page function with included indentation
- */
-func (p *Page) DumpPage_Indent(buf *bytes.Buffer, level int, visited map[string]bool) {
-	visited[p.URI] = true
+// DumpPageIndent dumps page function with included indentation
+func (p *Page) DumpPageIndent(buf *bytes.Buffer, level int, visited map[string]bool) {
+	visited[p.URI.String()] = true
 
 	fmt.Fprintf(buf, "%sTitle: %s\n", indent(level), p.Title)
 	fmt.Fprintf(buf, "%sURI:   %s\n", indent(level), p.URI)
@@ -131,8 +116,8 @@ func (p *Page) DumpPage_Indent(buf *bytes.Buffer, level int, visited map[string]
 	if len(p.Pages) > 0 {
 		fmt.Fprintf(buf, "%sPages:\n", indent(level))
 		for _, np := range p.Pages {
-			if !visited[np.URI] {
-				np.DumpPage_Indent(buf, level+1, visited)
+			if !visited[np.URI.String()] {
+				np.DumpPageIndent(buf, level+1, visited)
 			} else {
 				fmt.Fprintf(buf, "%sTitle: %s (previously visited)\n", indent(level+1), np.Title)
 				fmt.Fprintf(buf, "%sURI:   %s\n", indent(level+1), np.URI)
@@ -143,12 +128,10 @@ func (p *Page) DumpPage_Indent(buf *bytes.Buffer, level int, visited map[string]
 	fmt.Println()
 }
 
-/**
- * Create a new asset struct and return the pointer
- */
+// NewAsset creates a new asset struct and returns the pointer
 func NewAsset(uri string, t AssetType) (*Asset, error) {
 
-	if t < AssetType_JS || t > AssetType_IMG {
+	if t < AssetTypeJS || t > AssetTypeIMG {
 		return nil, errors.New("Invalid asset type")
 	}
 
@@ -160,15 +143,12 @@ func NewAsset(uri string, t AssetType) (*Asset, error) {
 	return asset, nil
 }
 
-/**
- * Create a new page struct and return the pointer
- */
-func NewPage(uri string, title string) *Page {
+// NewPage creates a new page struct and returns the pointer
+func NewPage(uri *url.URL) *Page {
 	page := new(Page)
 
 	page.URI = uri
-	page.Type = AssetType_HTML
-	page.Title = title
+	page.Type = AssetTypeHTML
 
 	return page
 }

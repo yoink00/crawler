@@ -9,11 +9,13 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
-	"wapbot.co.uk/crawler"
+
+	"github.com/yoink00/crawler/crawler"
 )
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var site = flag.String("site", "", "site to process")
+var numPages = flag.Int("pages", 100, "number of pages to crawl")
 
 func main() {
 	flag.Parse()
@@ -47,7 +49,7 @@ func main() {
 		return
 	}
 
-	page, err := crawler.ProcessPage(uri)
+	page, err := crawler.ProcessPage(uri, numPages)
 	if err != nil {
 		fmt.Printf("Unable to crawl page: %s\n", err.Error())
 		return

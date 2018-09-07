@@ -1,2 +1,0 @@
-setenv GOPATH `pwd`
-setenv PATH   ${PATH}:$GOPATH/bin
